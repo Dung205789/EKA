@@ -1,0 +1,188 @@
+# EKA — Enterprise AI Knowledge Assistant (Local‑first RAG)
+**General + Legal Intelligence • Hybrid Retrieval (BM25 + Vector) • Streaming Chat UI**
+
+EKA là một **knowledge assistant chạy local-first**: ingest tài liệu nội bộ (PDF/DOCX/TXT/URL/YouTube transcript), index vào **SQLite + Qdrant**, truy hồi **hybrid (BM25 + vector) + RRF**, và trả lời bằng **LLM (mặc định: Ollama)** kèm **citations**.
+
+> Mục tiêu dự án: demo một hệ RAG “end‑to‑end” có UI giống ChatGPT, chạy được hoàn toàn local để bảo vệ dữ liệu, đồng thời vẫn đủ modular để thay LLM/embedding/rerank.
+
+---
+
+## Highlights (điểm nhấn kỹ thuật)
+- **Local-first**: dữ liệu và index nằm trên máy (SQLite + Qdrant).  
+- **Hybrid retrieval**: BM25 + Vector, fuse bằng **Reciprocal Rank Fusion (RRF)**.
+- **Streaming chat (SSE)**: UI nhận token theo thời gian thực; backend có **keep-alive ping** để tránh timeout khi model trả token chậm.
+- **Ingest đa nguồn**: file upload, local path, URL (auto detect), **YouTube transcript**.
+- **Auto mode (general vs legal)**: backend tự chọn chunker phù hợp để UI không cần “mode selector”.
+- **Graceful degradation**: nếu embeddings/vector tạm lỗi (model chưa pull), hệ vẫn có thể fallback BM25 thay vì “hard fail”.
+- **One-command E2E reset**: script tự down volumes → build → up → wait health.
+
+---
+
+## Tech stack
+- **Backend**: FastAPI + Uvicorn
+- **Vector DB**: Qdrant
+- **LLM & Embeddings (default)**: Ollama (`llama3.1`, `nomic-embed-text`)
+- **BM25**: `rank-bm25`
+- **Parsers**: `pypdf`, `python-docx`, `beautifulsoup4`, `youtube-transcript-api`
+- **UI**:
+  - **Next.js (App Router)** “ChatGPT-like” + streaming
+  - Streamlit UI (legacy)
+
+---
+
+## Kiến trúc (high-level)
+```
+Next.js UI (:3000)  ──SSE──►  FastAPI (:8000)  ──►  Ollama (:11434)
+                            │
+                            ├──► Qdrant (:6333)  (vector)
+                            └──► SQLite (documents + chunks + BM25 corpus)
+```
+
+---
+
+## Quick start (Docker) — chạy end-to-end
+**Yêu cầu**: Docker Desktop + Docker Compose v2
+
+### Option A — 1 lệnh (khuyến nghị)
+**Windows (PowerShell)**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\e2e_reset.ps1
+```
+
+**Linux/macOS**
+```bash
+./scripts/e2e_reset.sh
+```
+
+### Option B — chạy compose thủ công
+```bash
+cd docker
+docker compose up -d --build
+```
+
+### Mở UI / Tools
+- **Web UI (Next.js):** http://localhost:3000
+- **Streamlit UI:** http://localhost:8501
+- **API Swagger:** http://localhost:8000/docs
+- **Qdrant dashboard:** http://localhost:6333/dashboard
+
+### Health check
+```bash
+curl http://localhost:8000/health
+```
+
+---
+
+## Cách dùng (workflow)
+### 1) Ingest tài liệu
+Bạn có thể ingest bằng UI (Documents page) hoặc qua API.
+
+**Upload file**
+```bash
+curl -X POST "http://localhost:8000/ingest/upload?mode=auto" \
+  -F "file=@./data/sample.pdf"
+```
+
+**Ingest local path (server-side)**
+```bash
+curl -X POST http://localhost:8000/ingest/path \
+  -H "Content-Type: application/json" \
+  -d '{"path":"./data/sample.pdf","mode":"auto"}'
+```
+
+**Ingest URL (auto detect HTML/PDF/DOCX/TXT/MD/YouTube)**
+```bash
+curl -X POST http://localhost:8000/ingest/url \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","mode":"auto","source":"auto"}'
+```
+
+**Ingest YouTube transcript**
+```bash
+curl -X POST http://localhost:8000/ingest/url \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.youtube.com/watch?v=VIDEOID","mode":"auto","source":"youtube"}'
+```
+
+### 2) Hỏi đáp / Chat
+**Chat (non-stream)**
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Tóm tắt 5 ý chính trong tài liệu vừa ingest"}'
+```
+
+**Chat streaming (SSE)**
+```bash
+curl -N -X POST http://localhost:8000/chat/stream \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{"question":"Tạo checklist triển khai dựa trên tài liệu"}'
+```
+
+### 3) Search (hybrid retrieval)
+```bash
+curl -X POST http://localhost:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"query":"điều kiện hiệu lực hợp đồng","mode":"legal","jurisdiction":"Illinois"}'
+```
+
+---
+
+## Cấu hình quan trọng
+Các biến môi trường có default trong `app/core/config.py` và được set sẵn trong `docker/docker-compose.yml`.
+
+Một vài biến hay dùng:
+- `LLM_PROVIDER=ollama|openai`
+- `OLLAMA_MODEL=llama3.1` (có thể đổi sang model nhỏ hơn để nhanh hơn)
+- `EMBED_BACKEND=ollama|openai|st`
+- `OLLAMA_EMBED_MODEL=nomic-embed-text`
+- `EMBED_DIM=768` (**phải khớp** embedding model; backend có `VECTOR_RECREATE_ON_DIM_MISMATCH=true` để tự recreate Qdrant collection khi lệch dim)
+- `RERANK_BACKEND=none|st` (optional; cần `pip install .[local_ml]` nếu bật)
+
+> Lưu ý privacy: mặc định chạy local. Nếu chuyển sang OpenAI, dữ liệu context sẽ được gửi tới API của OpenAI.
+
+---
+
+## Project structure
+```
+app/
+  api/                 # FastAPI routes: ingest/search/chat/documents
+  adapters/            # vector store, llm providers, bm25
+  services/            # ingest pipeline, retrieval, rerank, citations, prompts
+  legal/               # legal chunker + metadata enrichment
+web/                   # Next.js streaming UI (ChatGPT-like)
+docker/                # compose + Dockerfiles (api/ui/web/ollama-init)
+scripts/               # e2e_reset.ps1/.sh
+data/                  # SQLite + uploaded files (mounted volume)
+```
+
+---
+
+## Troubleshooting (nhanh)
+- **/health không OK**:
+  ```bash
+  cd docker
+  docker compose logs -f api
+  docker compose logs -f ollama
+  docker compose logs -f qdrant
+  ```
+- **Model chưa có trong Ollama** (hiếm vì có `ollama-init`, nhưng có thể pull thủ công):
+  ```bash
+  cd docker
+  docker compose exec ollama ollama pull llama3.1
+  docker compose exec ollama ollama pull nomic-embed-text
+  ```
+
+---
+
+## Roadmap (ý tưởng mở rộng)
+- Incremental BM25 update (thay vì rebuild toàn bộ mỗi lần ingest)
+- Metadata extraction mạnh hơn cho legal docs (jurisdiction/date/status)
+- Auth/multi-tenant + namespaces per collection
+- Better PDF table/layout parsing (quality cho tài liệu scan)
+
+---
+
+## Disclaimer
+Dự án demo kỹ thuật RAG/IR. Với legal mode, output **không phải tư vấn pháp lý**.

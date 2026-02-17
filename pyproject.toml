@@ -1,0 +1,34 @@
+[project]
+name = "eka"
+version = "0.1.0"
+description = "Enterprise AI Knowledge Assistant (General + Legal Intelligence) - local-first RAG"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  "httpx>=0.27",
+  "rank-bm25>=0.2.2",
+  "qdrant-client>=1.9.0",
+  "pypdf>=4.2.0",
+  "python-docx>=1.1.2",
+  "beautifulsoup4>=4.12.3",
+  "youtube-transcript-api>=0.6.2",
+  "openai>=1.40.0",
+  "python-multipart"
+]
+
+[project.optional-dependencies]
+# Optional local ML stack. Kept out of the default Docker build to avoid huge downloads / CUDA wheels.
+local_ml = [
+  "sentence-transformers>=3.0.0",
+]
+
+[tool.uvicorn]
+factory = false
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
