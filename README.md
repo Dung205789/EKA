@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # EKA — Enterprise AI Knowledge Assistant (Local‑first RAG)
 **General + Legal Intelligence • Hybrid Retrieval (BM25 + Vector) • Streaming Chat UI**
 
@@ -186,3 +187,6 @@ data/                  # SQLite + uploaded files (mounted volume)
 
 ## Disclaimer
 Dự án demo kỹ thuật RAG/IR. Với legal mode, output **không phải tư vấn pháp lý**.
+=======
+# EKA
+>>>>>>> 115f99b8d3228e8aca54ad8fe67842e62ad04dfd
