@@ -1,0 +1,106 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    # (optional) keeps Ollama from using too much RAM/VRAM if your machine is small
+    # environment:
+    #   OLLAMA_NUM_PARALLEL: "1"
+    #   OLLAMA_MAX_LOADED_MODELS: "1"
+
+  # One-shot init container that pulls required models into the shared ollama volume.
+  # This prevents confusing 500 errors when the API calls Ollama before models exist.
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+    volumes:
+      - ollama:/root/.ollama
+    entrypoint: ["/bin/sh", "-lc"]
+    command: |
+      echo "Waiting for Ollama...";
+      for i in $(seq 1 60); do
+        wget -qO- http://ollama:11434/api/tags >/dev/null 2>&1 && break;
+        sleep 1;
+      done;
+      echo "Pulling models...";
+      ollama pull llama3.1 || true;
+      ollama pull nomic-embed-text || true;
+      echo "Done.";
+      exit 0
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      ENV: "local"
+      VECTOR_DB_URL: "http://qdrant:6333"
+      VECTOR_COLLECTION: "eka_chunks"
+      VECTOR_RECREATE_ON_DIM_MISMATCH: "true"
+      DATA_DIR: "/app/data"
+      DB_PATH: "/app/data/eka.sqlite3"
+
+      # LLM / Embeddings
+      LLM_PROVIDER: "ollama"
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      # Tip: choose a smaller model for faster answers, e.g. "llama3.1:8b"
+      OLLAMA_MODEL: "llama3.1"
+      OLLAMA_NUM_PREDICT: "512"
+      OLLAMA_TEMPERATURE: "0.2"
+      OLLAMA_TOP_P: "0.9"
+      OLLAMA_KEEP_ALIVE: "30m"
+
+      EMBED_BACKEND: "ollama"
+      OLLAMA_EMBED_MODEL: "nomic-embed-text"
+      EMBED_DIM: "768"
+
+      RERANK_BACKEND: "none"
+
+    volumes:
+      - ../data:/app/data
+    depends_on:
+      - qdrant
+      - ollama
+      - ollama-init
+
+  ui:
+    build:
+      context: ..
+      dockerfile: docker/UI.Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      EKA_API_URL: "http://api:8000"
+    depends_on:
+      - api
+
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/WEB.Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # Server-only base URL used by Next.js API routes to proxy to FastAPI
+      EKA_API_URL: "http://api:8000"
+    depends_on:
+      - api
+
+volumes:
+  qdrant_storage:
+  ollama:
