@@ -76,6 +76,7 @@ curl http://localhost:8000/health
 ## Cách dùng (workflow)
 ### 1) Ingest tài liệu
 Bạn có thể ingest bằng UI (Documents page) hoặc qua API.
+<img width="1918" height="913" alt="image" src="https://github.com/user-attachments/assets/89b923ae-0ffc-4b62-92f0-ce2d274a468f" />
 
 **Upload file**
 ```bash
@@ -105,6 +106,8 @@ curl -X POST http://localhost:8000/ingest/url \
 ```
 
 ### 2) Hỏi đáp / Chat
+<img width="1919" height="884" alt="image" src="https://github.com/user-attachments/assets/99dae131-a5e3-499e-8f20-6f7d78c6efc7" />
+
 **Chat (non-stream)**
 ```bash
 curl -X POST http://localhost:8000/chat \
