@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # EKA — Enterprise AI Knowledge Assistant (Local‑first RAG)
 **General + Legal Intelligence • Hybrid Retrieval (BM25 + Vector) • Streaming Chat UI**
 
@@ -8,7 +7,7 @@ EKA là một **knowledge assistant chạy local-first**: ingest tài liệu n�
 
 ---
 
-## Highlights (điểm nhấn kỹ thuật)
+## Highlights
 - **Local-first**: dữ liệu và index nằm trên máy (SQLite + Qdrant).  
 - **Hybrid retrieval**: BM25 + Vector, fuse bằng **Reciprocal Rank Fusion (RRF)**.
 - **Streaming chat (SSE)**: UI nhận token theo thời gian thực; backend có **keep-alive ping** để tránh timeout khi model trả token chậm.
