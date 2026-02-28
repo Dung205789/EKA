@@ -30,6 +30,7 @@ def rrf_fuse(rank_a: list[str], rank_b: list[str], k: int) -> list[str]:
 def hybrid_search(query: str, topk_vector: int | None = None, topk_bm25: int | None = None, meta_filter: dict | None = None) -> list[dict]:
     topk_vector = topk_vector or settings.TOPK_VECTOR
     topk_bm25 = topk_bm25 or settings.TOPK_BM25
+    out_limit = max(topk_vector, topk_bm25)
 
     # Embeddings or vector DB may be temporarily unavailable (e.g., Ollama model not pulled yet).
     # We degrade gracefully to BM25-only instead of returning 500.
@@ -87,6 +88,6 @@ def hybrid_search(query: str, topk_vector: int | None = None, topk_bm25: int | N
             "heading_path": c["heading_path"],
             "meta": c["meta"],
         })
-        if len(out) >= max(settings.TOPK_VECTOR, settings.TOPK_BM25):
+        if len(out) >= out_limit:
             break
     return out

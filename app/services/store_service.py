@@ -158,8 +158,10 @@ def list_documents() -> list[Document]:
 
 def delete_document(doc_id: str) -> None:
     """Delete a document and all related chunks (SQLite + Qdrant)."""
-    # Best-effort vector deletion
+    # Best-effort vector deletion (lazy import avoids circular dependency)
     try:
+        from app.services.retrieve_service import get_vector
+
         vec = get_vector()
         if hasattr(vec, "delete_by_doc_id"):
             vec.delete_by_doc_id(doc_id)

@@ -29,6 +29,26 @@ type Doc = {
   created_at?: string
 }
 
+async function parseApiError(r: Response): Promise<string> {
+  const txt = await r.text()
+  if (!txt) return `Request failed (${r.status})`
+
+  try {
+    const obj = JSON.parse(txt)
+    const detail = obj?.detail
+    if (typeof detail === 'string') return detail
+    if (detail && typeof detail === 'object') {
+      const err = typeof detail.error === 'string' ? detail.error : ''
+      const hint = typeof detail.hint === 'string' ? detail.hint : ''
+      return [err, hint].filter(Boolean).join('\n') || txt
+    }
+    if (typeof obj?.error === 'string') return obj.error
+    return txt
+  } catch {
+    return txt
+  }
+}
+
 export function DocumentsClient() {
   const router = useRouter()
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -50,7 +70,7 @@ export function DocumentsClient() {
   async function refreshDocs() {
     try {
       const r = await fetch('/api/documents')
-      if (!r.ok) throw new Error(await r.text())
+      if (!r.ok) throw new Error(await parseApiError(r))
       const data = await r.json()
       setDocs(data)
     } catch (e: any) {
@@ -88,8 +108,7 @@ export function DocumentsClient() {
         body: form
       })
       if (!r.ok) {
-        const txt = await r.text()
-        throw new Error(txt)
+        throw new Error(await parseApiError(r))
       }
       const data = await r.json()
       setStatus(`Ingested: ${data?.doc_id || 'ok'}`)
@@ -113,8 +132,7 @@ export function DocumentsClient() {
         body: JSON.stringify({ url: u, mode, source: 'auto' })
       })
       if (!r.ok) {
-        const txt = await r.text()
-        throw new Error(txt)
+        throw new Error(await parseApiError(r))
       }
       const data = await r.json()
       setStatus(`Ingested URL: ${data?.doc_id || 'ok'}`)
@@ -129,11 +147,13 @@ export function DocumentsClient() {
 
   async function deleteDoc(id: string) {
     if (busy) return
+    if (!window.confirm('Delete this document? This cannot be undone.')) return
+
     setBusy(true)
     setStatus('')
     try {
       const r = await fetch(`/api/documents/${id}`, { method: 'DELETE' })
-      if (!r.ok) throw new Error(await r.text())
+      if (!r.ok) throw new Error(await parseApiError(r))
       await refreshDocs()
     } catch (e: any) {
       setStatus(e?.message || String(e))

@@ -112,6 +112,7 @@ export function ChatClient() {
       const decoder = new TextDecoder()
       let buffer = ''
       let citations: Citation[] | undefined
+      let receivedToken = false
 
       while (true) {
         const { value, done } = await reader.read()
@@ -135,6 +136,7 @@ export function ChatClient() {
               const obj = JSON.parse(evt.data)
               const delta = obj.delta as string
               if (delta) {
+                receivedToken = true
                 updateConversation(activeId, (c) => {
                   const msgs = c.messages.map((m) =>
                     m.id === assistantMsg.id
@@ -166,6 +168,7 @@ export function ChatClient() {
                   ? {
                       ...m,
                       thinking: false,
+                      content: receivedToken ? m.content : m.content || 'No response generated.',
                       citations: citations && citations.length > 0 ? citations : m.citations
                     }
                   : m

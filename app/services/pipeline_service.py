@@ -1,85 +1,68 @@
 from app.core.models import Document
-from app.services.title_service import best_title
-from app.services.store_service import save_document, save_chunks
-from app.services.embed_service import embed_texts
-from app.services.retrieve_service import get_vector, rebuild_bm25
-from app.services.chunk_service import chunk_general
 from app.legal.legal_chunker import chunk_legal
 from app.legal.legal_metadata import enrich_legal_metadata
+from app.services.chunk_service import chunk_general
+from app.services.embed_service import embed_texts
+from app.services.retrieve_service import get_vector, rebuild_bm25
+from app.services.store_service import save_chunks, save_document
+from app.services.title_service import best_title
 
 
-def _auto_mode(text: str) -> str:
-    """Heuristic detection between legal vs general.
+def _resolve_mode(doc: Document, mode: str) -> str:
+    requested = (mode or "auto").strip().lower()
+    if requested in {"general", "legal"}:
+        return requested
 
-    Goal: UI has no mode selector, but we still pick the best chunker.
-    """
-    t = (text or "").lower()
-    markers = [
-        "điều ", "khoản ", "mục ", "chương ", "luật ", "nghị định", "thông tư",
-        "quyết định", "căn cứ", "ban hành", "hiệu lực", "hợp đồng", "phụ lục",
-        "tòa án", "bộ luật",
-    ]
-    score = sum(1 for m in markers if m in t)
-    return "legal" if score >= 2 else "general"
+    text_head = (doc.raw_text or "")[:4000].lower()
+    legal_signals = ["section", "article", "whereas", "jurisdiction", "court", "plaintiff", "defendant"]
+    hits = sum(1 for s in legal_signals if s in text_head)
+    return "legal" if hits >= 2 else "general"
+
 
 def ingest_document(doc: Document, mode: str = "auto") -> dict:
-    # Normalize the title early so UI and citations show human-friendly names.
-    try:
-        doc.title = best_title(doc)
-        doc.meta = dict(doc.meta or {})
-        doc.meta["display_title"] = doc.title
-    except Exception:
-        pass
+    effective_mode = _resolve_mode(doc, mode)
+    warnings: list[str] = []
 
-    # 1) decide mode (auto-detect if needed)
-    if mode == "auto":
-        mode = _auto_mode(doc.raw_text)
-    # Store mode hint in metadata (Document model has no `mode` field)
-    try:
-        doc.meta["mode"] = mode
-    except Exception:
-        pass
-    # keep mode visible in document listing
-    try:
-        doc.meta = dict(doc.meta or {})
-        doc.meta["mode"] = mode
-    except Exception:
-        pass
-
-    # 2) chunk
-    if mode == "legal":
-        # enrich doc meta for legal
+    doc.meta = dict(doc.meta or {})
+    doc.meta["mode"] = effective_mode
+    if effective_mode == "legal":
+        doc.meta["legal_mode"] = True
         doc.meta = enrich_legal_metadata(doc.meta)
-        chunks = chunk_legal(doc)
-    else:
-        chunks = chunk_general(doc)
 
-    # 2) persist document (after meta enrichment)
+    doc.title = best_title(doc)
     save_document(doc)
 
-    # 3) persist chunks
+    chunks = chunk_legal(doc) if effective_mode == "legal" else chunk_general(doc)
     save_chunks(chunks)
 
-    # 4) embeddings + upsert vector
-    vecs = embed_texts([c.text for c in chunks])
-    if vecs:
-        # Ensure the vector collection exists before upsert.
-        # Otherwise Qdrant returns 404 for /collections/<name>/points.
-        get_vector().ensure_collection(dim=len(vecs[0]))
-    ids = [c.chunk_id for c in chunks]
-    payloads = []
-    for c in chunks:
-        payloads.append({
-            "doc_id": c.doc_id,
-            "text": c.text,  # helpful for debugging in Qdrant UI
-            "heading_path": c.heading_path,
-            **(c.meta or {}),
-        })
-    if vecs:
-        get_vector().upsert(ids, vecs, payloads)
+    vectors = []
+    if chunks:
+        try:
+            vectors = embed_texts([c.text for c in chunks])
+        except Exception as e:
+            warnings.append(f"Embedding unavailable, indexed with BM25 only: {e}")
 
-    # 5) rebuild bm25 (simple approach). For large corpora, move to incremental update.
-    rebuild_bm25()
+    if chunks and vectors:
+        try:
+            vec = get_vector()
+            vec.ensure_collection(dim=len(vectors[0]))
+            vec.upsert(
+                ids=[c.chunk_id for c in chunks],
+                vectors=vectors,
+                payloads=[{"chunk_id": c.chunk_id, "doc_id": c.doc_id, **(c.meta or {})} for c in chunks],
+            )
+        except Exception as e:
+            warnings.append(f"Vector upsert unavailable, indexed with BM25 only: {e}")
 
-    # Don't expose internal routing/mode to the UI.
-    return {"doc_id": doc.doc_id, "chunks": len(chunks)}
+    if chunks:
+        rebuild_bm25()
+
+    return {
+        "ok": True,
+        "doc_id": doc.doc_id,
+        "title": doc.title,
+        "mode": effective_mode,
+        "chunks": len(chunks),
+        "warnings": warnings,
+    }
+
