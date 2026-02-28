@@ -2,8 +2,10 @@
 ### Local-first RAG assistant for grounded Q&A on your internal documents.
 
 EKA is a local-first knowledge assistant that ingests internal documents (PDF/DOCX/TXT/URL/YouTube transcript), indexes them with SQLite + Qdrant, and answers questions with citations via LLMs (default: Ollama). The system is designed for privacy-first workflows while staying modular for future model/retrieval upgrades.
+<img width="1919" height="801" alt="image" src="https://github.com/user-attachments/assets/ccc8699e-9942-41fb-b6ba-ecc2b77602b7" />
+<img width="1919" height="913" alt="image-1" src="https://github.com/user-attachments/assets/d2f21da2-2ffb-4884-9854-adebcdc0ed00" />
 
-## Diagram (optional)
+## Diagram
 ```text
 Next.js UI (:3000) ──► FastAPI (:8000) ──► Ollama (:11434)
                     │
