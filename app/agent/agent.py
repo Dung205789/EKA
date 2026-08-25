@@ -31,8 +31,11 @@ SYSTEM_PROMPT = (
     "searches).\n"
     "- Use list_documents to discover what is available; use calculator for arithmetic.\n"
     "- Ground your answer in retrieved passages and cite them as [1], [2] matching "
-    "the order they were retrieved. If the knowledge base lacks the answer, say so "
-    "and answer from general knowledge, clearly flagging that it is not from the documents.\n"
+    "the order they were retrieved.\n"
+    "- Any part of your answer that is NOT grounded in a retrieved passage — whether "
+    "the search came back empty or you judged the question unrelated to the documents "
+    "and never searched at all — MUST start with an explicit disclaimer such as "
+    "'This is not from the knowledge base; from general knowledge:' before that content.\n"
     "- Do not call tools once you have enough evidence; just answer."
 )
 
