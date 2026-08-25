@@ -1,4 +1,6 @@
-from typing import AsyncIterator
+import json
+import uuid
+from typing import Any, AsyncIterator
 
 from app.core.config import settings
 from app.adapters.llm.base import LLM
@@ -36,3 +38,38 @@ class OpenAILLM(LLM):
                 delta = None
             if delta:
                 yield delta
+
+    async def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        kwargs: dict[str, Any] = {
+            "model": settings.OPENAI_MODEL,
+            "messages": messages,
+            "temperature": 0.2,
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        resp = await client.chat.completions.create(**kwargs)
+        msg = resp.choices[0].message
+
+        tool_calls: list[dict[str, Any]] = []
+        for tc in msg.tool_calls or []:
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except Exception:
+                args = {"_raw": tc.function.arguments}
+            tool_calls.append(
+                {
+                    "id": tc.id or f"call_{uuid.uuid4().hex[:8]}",
+                    "name": tc.function.name,
+                    "arguments": args,
+                }
+            )
+
+        return {"content": msg.content or "", "tool_calls": tool_calls}

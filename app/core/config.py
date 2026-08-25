@@ -1,7 +1,9 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
     APP_NAME: str = "EKA"
     ENV: str = "local"
 
@@ -27,6 +29,9 @@ class Settings(BaseSettings):
 
     RERANK_BACKEND: str = "none"  # none|st
     RERANK_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+    # Agentic loop
+    AGENT_MAX_STEPS: int = 5  # max tool-calling iterations before forcing an answer
 
     LLM_PROVIDER: str = "ollama"  # ollama|openai
     OLLAMA_MODEL: str = "llama3.1"

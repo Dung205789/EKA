@@ -8,6 +8,7 @@ from app.services.retrieve_service import get_vector
 from app.api.routes_ingest import router as ingest_router
 from app.api.routes_search import router as search_router
 from app.api.routes_chat import router as chat_router
+from app.api.routes_agent import router as agent_router
 from app.api.routes_documents import router as docs_router
 
 def create_app():
@@ -39,6 +40,7 @@ def create_app():
     app.include_router(ingest_router)
     app.include_router(search_router)
     app.include_router(chat_router)
+    app.include_router(agent_router)
     app.include_router(docs_router)
 
     @app.get("/health")

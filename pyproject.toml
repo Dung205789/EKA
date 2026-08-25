@@ -28,6 +28,9 @@ local_ml = [
 [tool.uvicorn]
 factory = false
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"

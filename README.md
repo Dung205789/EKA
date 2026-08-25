@@ -13,6 +13,23 @@ Next.js UI (:3000) ──► FastAPI (:8000) ──► Ollama (:11434)
                     └──► SQLite (data/eka.sqlite3)
 ```
 
+## Agentic mode
+Beyond single-shot RAG, EKA exposes a **tool-calling agent** that decides _how_ to answer:
+- **Tools**: `search_knowledge_base` (hybrid retrieval + rerank), `list_documents`, `calculator` — registered in `app/agent/tools.py`.
+- **ReAct loop** (`app/agent/agent.py`): the LLM plans → calls tools → observes → repeats, bounded by `AGENT_MAX_STEPS`. Complex questions are decomposed into multiple focused searches; citations are aggregated across calls.
+- **Observable reasoning**: every step (plan / tool_call / observation / final) is emitted as a structured trace.
+- **Endpoints**:
+  - `POST /agent` → `{ answer, citations, trace, steps }`
+  - `POST /agent/stream` → SSE stream of live trace events
+- **Local-first**: runs on Ollama function-calling models (e.g. `llama3.1`); the same code path works with OpenAI.
+
+```text
+question ─► [plan] ─► search_knowledge_base ─► [observe] ─┐
+              ▲                                            │
+              └──────────── (loop ≤ AGENT_MAX_STEPS) ◄─────┘
+                                  └─► grounded answer + citations
+```
+
 ## Tech stack
 - Backend: FastAPI, Uvicorn
 - Frontend: Next.js (App Router), Streamlit (legacy)
