@@ -32,12 +32,25 @@ question ─► [plan] ─► search_knowledge_base ─► [observe] ─┐
 
 ## Tech stack
 - Backend: FastAPI, Uvicorn
-- Frontend: Next.js (App Router), Streamlit (legacy)
-- LLM/Embeddings: Ollama (`llama3.1`, `nomic-embed-text`)
-- Retrieval: Hybrid BM25 + vector (RRF fusion)
+- Frontend: Next.js (App Router) is the primary UI; Streamlit is kept as a legacy/debug UI
+- LLM/Embeddings: Ollama (`llama3.1`, `nomic-embed-text`), OpenAI-compatible backend also supported
+- Retrieval: Hybrid BM25 + vector (RRF fusion), with graceful degradation to BM25-only if embeddings/vector DB are unavailable
+- Cross-encoder reranking (`RERANK_BACKEND=st`) is implemented but **off by default** (`none`) to keep the default install light; enable it via `.env` if you install the `local_ml` extra
 - Vector DB: Qdrant
 - Storage: SQLite
 - Parsing: pypdf, python-docx, BeautifulSoup, youtube-transcript-api
+
+## Evaluation
+The agent is evaluated end-to-end against a 15-case suite (`eval/cases.jsonl`) spanning grounded factual QA, tool selection, multi-hop questions, and out-of-scope refusal — run with a real OpenAI backend via `python eval/run_eval.py`. Latest results (`eval/report.md`):
+
+| Metric | Result |
+|---|---|
+| Runtime errors | 0/15 |
+| Keyword grounding accuracy | 15/15 (100%) |
+| Tool-selection accuracy | 14/14 (100%) |
+| Out-of-scope flagging rate | 1/1 (100%) |
+| Citation presence on KB questions | 12/12 (100%) |
+| Latency (p50 / p95) | 2983ms / 14810ms |
 
 ## Installation instructions for users
 ### Option A: Docker (recommended)
